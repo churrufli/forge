@@ -6,6 +6,7 @@ import forge.util.MyRandom;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public class PaperToken implements InventoryItemFromSet, IPaperCard {
@@ -85,6 +86,11 @@ public class PaperToken implements InventoryItemFromSet, IPaperCard {
 
     @Override
     public String getName() {
+        return name;
+    }
+
+    @Override
+    public String getDisplayName() {
         return name;
     }
 
@@ -170,6 +176,11 @@ public class PaperToken implements InventoryItemFromSet, IPaperCard {
     }
 
     @Override
+    public List<ICardFace> getAllFaces() {
+        return this.cardRules.getAllFaces();
+    }
+
+    @Override
     public boolean isToken() {
         return true;
     }
@@ -183,31 +194,6 @@ public class PaperToken implements InventoryItemFromSet, IPaperCard {
     @Override
     public String getCardAltImageKey() {
         return getImageKey(true);
-    }
-
-    @Override
-    public String getCardWSpecImageKey() {
-        return getImageKey(false);
-    }
-
-    @Override
-    public String getCardUSpecImageKey() {
-        return getImageKey(false);
-    }
-
-    @Override
-    public String getCardBSpecImageKey() {
-        return getImageKey(false);
-    }
-
-    @Override
-    public String getCardRSpecImageKey() {
-        return getImageKey(false);
-    }
-
-    @Override
-    public String getCardGSpecImageKey() {
-        return getImageKey(false);
     }
 
     // InventoryItem

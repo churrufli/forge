@@ -4,8 +4,8 @@ import forge.StaticData;
 import forge.adventure.data.AdventureEventData;
 import forge.adventure.player.AdventurePlayer;
 import forge.adventure.pointofintrest.PointOfInterestChanges;
-import forge.card.CardEdition;
 import forge.deck.Deck;
+import forge.deck.DeckFormat;
 import forge.item.BoosterPack;
 import forge.item.PaperCard;
 import forge.item.SealedTemplate;
@@ -29,7 +29,28 @@ public class AdventureEventController implements Serializable {
         Draft,
         Sealed,
         Jumpstart,
-        Constructed
+        Constructed;
+
+        public static EventFormat smartValueOf(String name) {
+            return Arrays.stream(EventFormat.values())
+                    .filter(e -> e.name().equalsIgnoreCase(name))
+                    .findFirst().orElse(null);
+        }
+
+        @Override
+        public String toString() {
+            return switch (this) {
+                case Sealed -> "Sealed Deck";
+                case Jumpstart -> "Jumpstart";
+                case Draft -> "Draft";
+                case Constructed -> "Constructed";
+                default -> name();
+            };
+        }
+
+        public DeckFormat getDeckFormat() {
+            return DeckFormat.Limited;
+        }
     }
 
     public enum EventStyle {
@@ -67,12 +88,45 @@ public class AdventureEventController implements Serializable {
         object = null;
     }
 
-    public AdventureEventData createEvent(EventStyle style, String pointID, int eventOrigin, PointOfInterestChanges changes) {
+    public AdventureEventData createEvent(String pointID) {
         if (nextEventDate.containsKey(pointID) && nextEventDate.get(pointID) >= LocalDate.now().toEpochDay()) {
             // No event currently available here
             return null;
         }
 
+        long eventSeed = getEventSeed(pointID);
+        Random random = new Random(eventSeed);
+
+        AdventureEventData e;
+        // After a certain number of wins, stop offering Jumpstart events
+        if (Current.player().getStatistic().totalWins() < 10 &&
+                random.nextInt(10) <= 2) {
+            e = new AdventureEventData(eventSeed, EventFormat.Jumpstart);
+        } else {
+            if (random.nextInt(4) == 3) {
+                // Experimental: 1 out of 4 chance for it to be a Sealed Deck event
+                e = new AdventureEventData(eventSeed, EventFormat.Sealed);
+            } else {
+                e = new AdventureEventData(eventSeed, EventFormat.Draft);
+            }
+        }
+
+        if (e.cardBlock == null) {
+            //covers cases where (somehow) editions that do not match the event style have been picked up
+            return null;
+        }
+        return e;
+    }
+
+    public AdventureEventData createEvent(EventFormat format, CardBlock cardBlock, String pointID) {
+        long eventSeed = getEventSeed(pointID);
+        AdventureEventData e = new AdventureEventData(eventSeed, format, cardBlock);
+        if(e.cardBlock == null)
+             return null;
+        return e;
+    }
+
+    private static long getEventSeed(String pointID) {
         long eventSeed;
         long timeSeed = LocalDate.now().toEpochDay();
         long placeSeed = Long.parseLong(pointID.replaceAll("[^0-9]", ""));
@@ -83,32 +137,12 @@ public class AdventureEventController implements Serializable {
         } else {
             eventSeed = timeSeed + placeSeed;
         }
+        return eventSeed;
+    }
 
-        Random random = new Random(eventSeed);
-
-        AdventureEventData e;
-
-        // After a certain number of wins, stop offering Jumpstart events
-        if (Current.player().getStatistic().totalWins() < 10 &&
-                random.nextInt(10) <= 2) {
-            e = new AdventureEventData(eventSeed, EventFormat.Jumpstart);
-        } else {
-            e = new AdventureEventData(eventSeed, EventFormat.Draft);
-        }
-
-        if (e.cardBlock == null) {
-            //covers cases where (somehow) editions that do not match the event style have been picked up
-            return null;
-        }
-
-        // If the chosen event seed recommends a four-person pod, run it as a RoundRobin
-        // Set can be null when it is only a meta set such as some Jumpstart events.
-        CardEdition firstSet = e.cardBlock.getSets().isEmpty() ? null : e.cardBlock.getSets().get(0);
-        int podSize = firstSet == null ? 8 : firstSet.getDraftOptions().getRecommendedPodSize();
-
+    public void initializeEvent(AdventureEventData e, String pointID, int eventOrigin, PointOfInterestChanges changes) {
         e.sourceID = pointID;
         e.eventOrigin = eventOrigin;
-        e.style = podSize == 4 ? EventStyle.RoundRobin : style;
 
         AdventureEventData.PairingStyle pairingStyle;
         if (e.style == EventStyle.RoundRobin) {
@@ -118,25 +152,16 @@ public class AdventureEventController implements Serializable {
         }
 
         e.eventRules = new AdventureEventData.AdventureEventRules(e.format, pairingStyle, changes == null ? 1f : changes.getTownPriceModifier());
-        e.generateParticipants(podSize - 1); //-1 to account for the player
 
-        switch (e.style) {
-            case Swiss:
-            case Bracket:
-                e.rounds = (e.participants.length / 2) - 1;
-                break;
-            case RoundRobin:
-                e.rounds = e.participants.length - 1;
-                break;
-        }
+        e.generateParticipants();
 
         AdventurePlayer.current().addEvent(e);
         nextEventDate.put(pointID, LocalDate.now().toEpochDay() + new Random().nextInt(2)); //next local event availability date
-        return e;
     }
 
     public Deck generateBooster(String setCode) {
-        List<PaperCard> cards = BoosterGenerator.getBoosterPack(StaticData.instance().getBoosters().get(setCode));
+        SealedTemplate template = AdventureOverrides.instance().getBoosterTemplate(setCode);
+        List<PaperCard> cards = BoosterGenerator.getBoosterPack(template);
         Deck output = new Deck();
         output.getMain().add(cards);
         String editionName = FModel.getMagicDb().getEditions().get(setCode).getName();
@@ -144,7 +169,6 @@ public class AdventureEventController implements Serializable {
         output.setComment(setCode);
         return output;
     }
-
     public Deck generateBoosterByColor(String color) {
         List<PaperCard> cards = BoosterPack.fromColor(color).getCards();
         Deck output = new Deck();

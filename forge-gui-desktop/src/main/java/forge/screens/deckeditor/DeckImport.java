@@ -231,7 +231,7 @@ public class DeckImport<TModel extends DeckBase> extends FDialog {
             this.controller.setCurrentDeckInEditor(this.host.getDeckController().getCurrentDeckInEditor());
         // Get the list of allowed Sections
         List<DeckSection> supportedSections = new ArrayList<>();
-        for (DeckSection section : EnumSet.allOf(DeckSection.class)) {
+        for (DeckSection section : DeckSection.values()) {
             if (this.host.isSectionImportable(section))
                 supportedSections.add(section);
         }
@@ -539,7 +539,6 @@ public class DeckImport<TModel extends DeckBase> extends FDialog {
             });
         }
 
-
         // === ASSEMBLING ALL PANELS TOGETHER
         // ==================================
         this.add(this.scrollInput, "cell 0 0, w 40%, growy, pushy, spany 2");
@@ -622,7 +621,7 @@ public class DeckImport<TModel extends DeckBase> extends FDialog {
         cardPreviewLabel.setText(String.format("<html>%s %s<br>%s</html>", STYLESHEET, editionLbl, statusLbl));
 
         // set tooltip
-        String tooltip = String.format("%s [%s] #%s", card.getName(), card.getEdition(),
+        String tooltip = String.format("%s [%s] #%s", card.getDisplayName(), card.getEdition(),
                 card.getCollectorNumber());
         cardImagePreview.setToolTipText(tooltip);
     }

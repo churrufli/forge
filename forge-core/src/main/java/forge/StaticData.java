@@ -60,18 +60,12 @@ public class StaticData {
     private IStorage<BoosterBox.Template> boosterBoxes;
     private IStorage<PrintSheet> printSheets;
     private final Map<String, List<String>> setLookup = new HashMap<>();
-    private List<String> blocksLandCodes = new ArrayList<>();
 
     private static StaticData lastInstance = null;
 
     public StaticData(CardStorageReader cardReader, CardStorageReader customCardReader, String editionFolder, String customEditionsFolder, String blockDataFolder, String cardArtPreference, boolean enableUnknownCards, boolean loadNonLegalCards) {
         this(cardReader, null, customCardReader, null, editionFolder, customEditionsFolder, blockDataFolder, "", cardArtPreference, enableUnknownCards, loadNonLegalCards, false, false);
     }
-
-    public StaticData(CardStorageReader cardReader, CardStorageReader tokenReader, CardStorageReader customCardReader, CardStorageReader customTokenReader, String editionFolder, String customEditionsFolder, String blockDataFolder, String setLookupFolder, String cardArtPreference, boolean enableUnknownCards, boolean loadNonLegalCards, boolean allowCustomCardsInDecksConformance){
-        this(cardReader, tokenReader, customCardReader, customTokenReader, editionFolder, customEditionsFolder, blockDataFolder, setLookupFolder, cardArtPreference, enableUnknownCards, loadNonLegalCards, allowCustomCardsInDecksConformance, false);
-    }
-
     public StaticData(CardStorageReader cardReader, CardStorageReader tokenReader, CardStorageReader customCardReader, CardStorageReader customTokenReader, String editionFolder, String customEditionsFolder, String blockDataFolder, String setLookupFolder, String cardArtPreference, boolean enableUnknownCards, boolean loadNonLegalCards, boolean allowCustomCardsInDecksConformance, boolean enableSmartCardArtSelection) {
         this.cardReader = cardReader;
         this.tokenReader = tokenReader;
@@ -81,8 +75,9 @@ public class StaticData {
         this.enableSmartCardArtSelection = enableSmartCardArtSelection;
         this.loadNonLegalCards = loadNonLegalCards;
         lastInstance = this;
-        List<String> funnyCards = new ArrayList<>();
-        List<String> filtered = new ArrayList<>();
+        Set<String> funnyCards = new HashSet<>();
+        Set<String> filtered = new HashSet<>();
+
         editions.append(new CardEdition.Collection(new CardEdition.Reader(new File(customEditionsFolder), true)));
 
         {
@@ -106,9 +101,9 @@ public class StaticData {
             for (CardRules card : cardReader.loadCards()) {
                 if (null == card) continue;
 
-                final String cardName = card.getName();
+                final String cardName = card.getPreInitName();
 
-                if (!loadNonLegalCards && !card.getType().isLand() && funnyCards.contains(cardName))
+                if (!loadNonLegalCards && funnyCards.contains(cardName) && !card.getType().isBasicLand())
                     filtered.add(cardName);
 
                 if (card.isVariant()) {
@@ -123,7 +118,7 @@ public class StaticData {
 
                     final String cardName = card.getName();
                     card.setCustom();
-                    if(card.isVariant()) { //Append loaded custom cards to the respective list.
+                    if (card.isVariant()) { //Append loaded custom cards to the respective list.
                         variantsCards.put(cardName, card);
                     } else {
                         regularCards.put(cardName, card);
@@ -131,12 +126,11 @@ public class StaticData {
                 }
             }
 
-            if (!filtered.isEmpty()) {
-                Collections.sort(filtered);
-            }
+            commonCards = new CardDb(regularCards, editions, filtered);
+            variantCards = new CardDb(variantsCards, editions, filtered);
 
-            commonCards = new CardDb(regularCards, editions, filtered, cardArtPreference);
-            variantCards = new CardDb(variantsCards, editions, filtered, cardArtPreference);
+            commonCards.setCardArtPreference(cardArtPreference);
+            variantCards.setCardArtPreference(cardArtPreference);
 
             //must initialize after establish field values for the sake of card image logic
             commonCards.initialize(false, false, enableUnknownCards);
@@ -415,16 +409,11 @@ public class StaticData {
         return databases;
     }
 
-    public List<String> getBlockLands() {
-        return blocksLandCodes;
-    }
-
     public TokenDb getAllTokens() { return allTokens; }
 
     public boolean allowCustomCardsInDecksConformance() {
         return this.allowCustomCardsInDecksConformance;
     }
-
 
     public void setStandardPredicate(Predicate<PaperCard> standardPredicate) { this.standardPredicate = standardPredicate; }
 
@@ -561,7 +550,6 @@ public class StaticData {
      * @param allowedSetCodes The list of the allowed set codes to consider when looking for alternative card art
      *                        candidates. If the list is not null and not empty, will be used in combination with the
      *                        <code>isLegal</code> predicate.
-     * @see CardDb#isLegal(List<String>)
      * @return an instance of <code>PaperCard</code> that is the selected alternative candidate, or <code>null</code>
      *          if None could be found.
      */
@@ -781,7 +769,7 @@ public class StaticData {
         Queue<String> TOKEN_Q = new ConcurrentLinkedQueue<>();
         boolean nifHeader = false;
         boolean cniHeader = false;
-        final Pattern funnyCardCollectorNumberPattern = Pattern.compile("^F\\d+");
+        final Pattern funnyCardCollectorNumberPattern = Pattern.compile("^F★?\\d+★?");
         for (CardEdition e : editions) {
             if (CardEdition.Type.FUNNY.equals(e.getType()))
                 continue;
@@ -982,12 +970,11 @@ public class StaticData {
         this.sourceImageForClone = b;
     }
 
-    public boolean isRebalanced(String name)
-    {
+    public boolean isRebalanced(String name) {
         if (!name.startsWith("A-")) {
             return false;
         }
-        for(PaperCard pc : this.getCommonCards().getAllCards(name)) {
+        for (PaperCard pc : this.getCommonCards().getAllCards(name)) {
             CardEdition e = this.editions.get(pc.getEdition());
             if (e != null && e.isRebalanced(name)) {
                 return true;

@@ -23,8 +23,6 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import com.google.common.collect.ImmutableList;
-
 import forge.Forge;
 import forge.Graphics;
 import forge.StaticData;
@@ -68,7 +66,7 @@ public class FDeckImportDialog extends FDialog {
     private final DeckImportController controller;
     private final FDeckEditor.DeckEditorConfig editorConfig;
 
-    private final static ImmutableList<String> importOrCancel = ImmutableList.of(Forge.getLocalizer().getMessage("lblImport"), Forge.getLocalizer().getMessage("lblCancel"));
+    private final static List<String> importOrCancel = List.of(Forge.getLocalizer().getMessage("lblImport"), Forge.getLocalizer().getMessage("lblCancel"));
 
     public FDeckImportDialog(final Deck currentDeck, final FDeckEditor.DeckEditorConfig editorConfig) {
         super(Forge.getLocalizer().getMessage("lblImportFromClipboard"), 2);
@@ -76,7 +74,7 @@ public class FDeckImportDialog extends FDialog {
         boolean replacingDeck = !currentDeck.isEmpty() || usingInventory;
         this.currentDeck = currentDeck;
         this.editorConfig = editorConfig;
-        ItemPool<PaperCard> cardPool = editorConfig.getCardPool(false);
+        ItemPool<PaperCard> cardPool = editorConfig.getCardPool();
         controller = new DeckImportController(dateTimeCheck, monthDropdown, yearDropdown, replacingDeck);
         String contents = Forge.getClipboard().getContents();
         if (contents == null)

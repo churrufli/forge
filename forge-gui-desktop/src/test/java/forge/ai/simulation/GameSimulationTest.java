@@ -6,21 +6,23 @@ import forge.card.CardStateName;
 import forge.card.MagicColor;
 import forge.game.Game;
 import forge.game.ability.ApiType;
-import forge.game.card.Card;
-import forge.game.card.CardCollection;
-import forge.game.card.CardCollectionView;
-import forge.game.card.CounterEnumType;
+import forge.game.card.*;
 import forge.game.keyword.Keyword;
 import forge.game.phase.PhaseType;
 import forge.game.player.Player;
 import forge.game.spellability.SpellAbility;
 import forge.game.zone.ZoneType;
+import forge.util.StreamUtil;
+
 import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
 
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class GameSimulationTest extends SimulationTest {
 
@@ -324,7 +326,7 @@ public class GameSimulationTest extends SimulationTest {
         Card manifestedCreature = findCardWithName(simGame, "");
         AssertJUnit.assertNotNull(manifestedCreature);
 
-        SpellAbility unmanifestSA = findSAWithPrefix(manifestedCreature.getAllPossibleAbilities(p, false),
+        SpellAbility unmanifestSA = findSAWithPrefix(manifestedCreature.getAllPossibleAbilities(simGame.getPlayers().get(1), false),
                 "Unmanifest");
         AssertJUnit.assertNotNull(unmanifestSA);
         AssertJUnit.assertEquals(2, manifestedCreature.getNetPower());
@@ -528,7 +530,7 @@ public class GameSimulationTest extends SimulationTest {
         addCard("Swamp", p);
         addCard("Swamp", p);
         Card depths = addCard("Dark Depths", p);
-        depths.addCounterInternal(CounterEnumType.ICE, 10, p, false, null, null);
+        depths.addCounterInternal(CounterType.getType("ICE"), 10, p, false, null, null);
         Card thespian = addCard("Thespian's Stage", p);
         game.getPhaseHandler().devModeSet(PhaseType.MAIN2, p);
         game.getAction().checkStateEffects(true);
@@ -2610,6 +2612,35 @@ public class GameSimulationTest extends SimulationTest {
         AssertJUnit.assertTrue(nonBasicForest.getType().hasSubtype("Mountain"));
     }
 
+    @Test
+    public void testHenzie() {
+        Game game = initAndCreateGame();
+        Player p = game.getPlayers().get(0);
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN2, p);
+
+        addCard("Henzie \"Toolbox\" Torre", p);
+        addCardToZone("Wastes", p, ZoneType.Library);
+        addCards("Plains", 5, p);
+        Card spell = addCardToZone("Serra Angel", p, ZoneType.Hand);
+
+        game.getAction().checkStaticAbilities();
+        List<SpellAbility> sas = spell.getAllPossibleAbilities(p, true);
+        SpellAbility blitz = sas.get(1);
+
+        GameSimulator sim = createSimulator(game, p);
+        game = sim.getSimulatedGameState();
+        sim.simulateSpellAbility(blitz);
+        spell = findCardWithName(game, "Serra Angel");
+
+        AssertJUnit.assertEquals(1, spell.getAmountOfKeyword(Keyword.BLITZ));
+        AssertJUnit.assertTrue(spell.hasKeyword(Keyword.HASTE));
+
+        playUntilNextTurn(game);
+
+        AssertJUnit.assertEquals(1, game.getPlayers().get(0).getCardsIn(ZoneType.Hand).size());
+        AssertJUnit.assertTrue(spell.isInZone(ZoneType.Graveyard));
+    }
+
     /**
      * Test for "Volo's Journal" usage by the AI. This test checks if the AI correctly
      * adds the correct types to the "Volo's Journal" when casting the spells in order
@@ -2661,6 +2692,105 @@ public class GameSimulationTest extends SimulationTest {
         }
     }
 
+    @Test
+    public void testGameCopyPreservesFaceDownExileState() {
+        Game game = initAndCreateGame();
+        Player p = game.getPlayers().get(1);
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, p);
+
+        // A foretold card sits in exile face down; a copy rebuilt from the
+        // paper card would come back face up, leaking hidden information.
+        Card foretold = addCardToZone("Behold the Multiverse", p, ZoneType.Exile);
+        foretold.turnFaceDownNoUpdate();
+        foretold.setForetold(true);
+
+        GameCopier copier = new GameCopier(game);
+        copier.makeCopy();
+
+        Card foretoldCopy = (Card) copier.find(foretold);
+        AssertJUnit.assertNotNull(foretoldCopy);
+        AssertJUnit.assertTrue(foretoldCopy.isFaceDown());
+        AssertJUnit.assertTrue(foretoldCopy.isForetold());
+    }
+
+    @Test
+    public void testGameCopyWiresPlayerEffectCards() {
+        Game game = initAndCreateGame();
+        Player p = game.getPlayers().get(1);
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, p);
+
+        p.getKeywordCard();
+        p.setBlessing(true, null);
+        p.createMonarchEffect(null);
+        AssertJUnit.assertEquals(1, countCardsWithName(game, "Keyword Effects", ZoneType.Command));
+        AssertJUnit.assertEquals(1, countCardsWithName(game, "City's Blessing", ZoneType.Command));
+        AssertJUnit.assertEquals(1, countCardsWithName(game, "The Monarch", ZoneType.Command));
+
+        GameCopier copier = new GameCopier(game);
+        Game copy = copier.makeCopy();
+        Player copyP = copy.getPlayer(p.getId());
+
+        // The copied player's effect-card fields must point at the copies that
+        // arrived with the command zone: the lazy getter must return the
+        // existing card instead of creating a duplicate...
+        copyP.getKeywordCard();
+        AssertJUnit.assertEquals(1, countCardsWithName(copy, "Keyword Effects", ZoneType.Command));
+
+        // ...the blessing must survive without a second effect card...
+        AssertJUnit.assertTrue(copyP.hasBlessing());
+        AssertJUnit.assertEquals(1, countCardsWithName(copy, "City's Blessing", ZoneType.Command));
+
+        // ...and removal must find the copied card rather than orphan it.
+        copyP.removeMonarchEffect();
+        AssertJUnit.assertEquals(0, countCardsWithName(copy, "The Monarch", ZoneType.Command));
+    }
+
+    @Test
+    public void testGameCopyPreservesCardIds() {
+        Game game = initAndCreateGame();
+        Player p = game.getPlayers().get(1);
+        Player opp = game.getPlayers().get(0);
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, p);
+
+        // Cards across zones and copy paths: battlefield, token, hand,
+        // graveyard, library. Ids are burned between adds (as happens in real
+        // games when tokens and effect cards come and go) so that the id
+        // sequence does not coincide with zone-traversal order — a copier that
+        // renumbers in traversal order then visibly compacts the ids.
+        addCards("Plains", 2, p);
+        game.nextCardId();
+        addCard("Runeclaw Bear", p);
+        game.nextCardId();
+        game.nextCardId();
+        addToken("c_a_treasure_sac", p);
+        addCardToZone("Island", opp, ZoneType.Hand);
+        game.nextCardId();
+        addCardToZone("Shock", opp, ZoneType.Graveyard);
+        game.nextCardId();
+        addCardToZone("Forest", p, ZoneType.Library);
+
+        GameCopier copier = new GameCopier(game);
+        Game copy = copier.makeCopy();
+
+        // Card ids are visible to the AI (Card.compareTo, id-keyed
+        // collections), so copies must keep them for simulations on the copy
+        // to play out like the original game.
+        Set<Integer> preservedIds = new HashSet<>();
+        for (ZoneType zone : new ZoneType[] { ZoneType.Battlefield, ZoneType.Hand,
+                ZoneType.Graveyard, ZoneType.Library, ZoneType.Command }) {
+            for (Card c : game.getCardsIn(zone)) {
+                Card cCopy = (Card) copier.find(c);
+                AssertJUnit.assertNotNull("no copy mapped for " + c, cCopy);
+                AssertJUnit.assertEquals("copy of " + c + " must keep its id", c.getId(), cCopy.getId());
+                preservedIds.add(cCopy.getId());
+            }
+        }
+
+        // Ids handed out in the copy after the fact must not collide with
+        // the preserved ones.
+        AssertJUnit.assertFalse(preservedIds.contains(copy.nextCardId()));
+    }
+
     /**
      * Helper method to check if all words in the given list are present in the iterable and unique.
      *
@@ -2670,19 +2800,57 @@ public class GameSimulationTest extends SimulationTest {
      */
     protected boolean areWordsInIterable(List<String> words, Iterable<String> iterable) {
         // Create a frequency map for the words in the iterable
-        Map<String, Integer> frequencyMap = new HashMap<>();
-        for (String item : iterable) {
-            frequencyMap.put(item, frequencyMap.getOrDefault(item, 0) + 1);
-        }
+        Map<String, Long> frequencyMap = StreamUtil.stream(iterable).collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
 
         // Check if each word in the list appears exactly once
         for (String word : words) {
-            if (frequencyMap.getOrDefault(word, 0) != 1) {
+            if (frequencyMap.getOrDefault(word, 0l) != 1) {
                 return false;  // If the word doesn't appear exactly once, return false
             }
         }
 
         return true;  // All words appear exactly once
+    }
+
+    @Test
+    public void testCounterAddedAllTriggerRespectsCounterType() {
+        // Cloaked Cadet: Whenever one or more +1/+1 counters are put on one or more
+        // Humans you control, draw a card.
+        String cadetName = "Cloaked Cadet";
+
+        Game game = initAndCreateGame();
+        Player p = game.getPlayers().get(1);
+        Card cadet = addCard(cadetName, p);
+        addCard("Swamp", p);
+        addCard("Forest", p);
+        addCardToZone("Runeclaw Bear", p, ZoneType.Library);
+        addCardToZone("Runeclaw Bear", p, ZoneType.Library);
+        Card woundCard = addCardToZone("Virulent Wound", p, ZoneType.Hand);
+        Card growthCard = addCardToZone("Battlegrowth", p, ZoneType.Hand);
+        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, p);
+        game.getAction().checkStateEffects(true);
+
+        int handSize = p.getCardsIn(ZoneType.Hand).size();
+
+        // a -1/-1 counter on a Human must not fire the +1/+1 counter trigger
+        SpellAbility woundSA = woundCard.getFirstSpellAbility();
+        woundSA.setActivatingPlayer(p);
+        woundSA.getTargets().add(cadet);
+        GameSimulator sim = createSimulator(game, p);
+        sim.simulateSpellAbility(woundSA);
+        Game simGame = sim.getSimulatedGameState();
+        AssertJUnit.assertEquals(1, findCardWithName(simGame, cadetName).getCounters(CounterEnumType.M1M1));
+        AssertJUnit.assertEquals(handSize - 1, simGame.getPlayers().get(1).getCardsIn(ZoneType.Hand).size());
+
+        // a +1/+1 counter fires it: one card cast from hand, one drawn
+        SpellAbility growthSA = growthCard.getFirstSpellAbility();
+        growthSA.setActivatingPlayer(p);
+        growthSA.getTargets().add(cadet);
+        sim = createSimulator(game, p);
+        sim.simulateSpellAbility(growthSA);
+        simGame = sim.getSimulatedGameState();
+        AssertJUnit.assertEquals(1, findCardWithName(simGame, cadetName).getCounters(CounterEnumType.P1P1));
+        AssertJUnit.assertEquals(handSize, simGame.getPlayers().get(1).getCardsIn(ZoneType.Hand).size());
     }
 
 }
