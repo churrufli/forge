@@ -411,13 +411,16 @@ Dellian
 Dihada
 Domri
 Dovin
+Dyfed
 Ellywick
 Elminster
 Elspeth
 Estrid
+Feroz
 Freyalise
 Garruk
 Gideon
+Greensleeves
 Grist
 Guff
 Huatli
@@ -449,6 +452,7 @@ Saheeli
 Samut
 Sarkhan
 Serra
+Sifa
 Sorin
 Szat
 Tamiyo
@@ -456,6 +460,7 @@ Tasha
 Teferi
 Teyo
 Tezzeret
+Thomil
 Tibalt
 Tyvar
 Ugin
