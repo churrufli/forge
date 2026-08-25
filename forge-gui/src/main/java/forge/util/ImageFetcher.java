@@ -140,10 +140,40 @@ public abstract class ImageFetcher {
         }
 
         String setCode = edition.getScryfallCode();
-        String langCode = edition.getCardsLangCode();
-        String primaryUrl = ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD + ImageUtil.getScryfallDownloadUrl(card, face, setCode, langCode, useArtCrop);
+        String defaultLangCode = edition.getCardsLangCode();
+
+        String preferredLangCode = CardLanguageIndex.getPreferredCardLangCode();
+        if (preferredLangCode != null && !preferredLangCode.equalsIgnoreCase(defaultLangCode)
+                && CardLanguageIndex.instance().isAvailableInLanguage(setCode, card.getCollectorNumber(), preferredLangCode)) {
+            addCdnUrlIfKnown(setCode, card.getCollectorNumber(), preferredLangCode, face, useArtCrop, downloadUrls);
+            String preferredUrl = ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD + ImageUtil.getScryfallDownloadUrl(card, face, setCode, preferredLangCode, useArtCrop);
+            if (!downloadUrls.contains(preferredUrl)) {
+                downloadUrls.add(preferredUrl);
+            }
+        }
+
+        addCdnUrlIfKnown(setCode, card.getCollectorNumber(), defaultLangCode, face, useArtCrop, downloadUrls);
+        String primaryUrl = ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD + ImageUtil.getScryfallDownloadUrl(card, face, setCode, defaultLangCode, useArtCrop);
         if (!downloadUrls.contains(primaryUrl)) {
             downloadUrls.add(primaryUrl);
+        }
+    }
+
+    /**
+     * TEMPORARY BRIDGE (see CardCdnUuidBridge): if a UUID is known locally for this
+     * printing/language, try the Scryfall CDN before the rate-limited API. No-op
+     * (does nothing, changes no behavior) when the UUID isn't known yet - remove
+     * this call once PR #10928's CdnUuidCache is available instead.
+     */
+    private void addCdnUrlIfKnown(String setCode, String collectorNumber, String langCode, String face, boolean useArtCrop, ArrayList<String> downloadUrls) {
+        String uuid = CardCdnUuidBridge.instance().getUuid(setCode, collectorNumber, langCode);
+        if (uuid == null) {
+            return;
+        }
+        String size = useArtCrop ? "art_crop" : "normal";
+        String cdnUrl = CardCdnUuidBridge.buildCdnUrl(uuid, size, face);
+        if (cdnUrl != null && !downloadUrls.contains(cdnUrl)) {
+            downloadUrls.add(cdnUrl);
         }
     }
 
@@ -214,7 +244,7 @@ public abstract class ImageFetcher {
                 CardEdition ed = StaticData.instance().getEditions().get(pc.getEdition());
                 if (ed != null) {
                     String setCode = ed.getScryfallCode();
-                    String langCode = ed.getCardsLangCode();
+                    String langCode = CardLanguageIndex.resolvePreferredLangCode(setCode, pc.getCollectorNumber(), ed.getCardsLangCode());
                     downloadUrls.add("PLANECHASEBG:" + ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD + ImageUtil.getScryfallDownloadUrl(pc, "", setCode, langCode, true));
                     FileUtil.ensureDirectoryExists(ForgeConstants.CACHE_PLANECHASE_PICS_DIR);
                     File destFile = new File(ForgeConstants.CACHE_PLANECHASE_PICS_DIR, getPlanechaseFilename(cardName));
@@ -389,7 +419,7 @@ public abstract class ImageFetcher {
 
             if (tempdata.length > 2) {
                 String tokenCode = edition.getTokensCode();
-                String langCode = edition.getCardsLangCode();
+                String langCode = CardLanguageIndex.resolvePreferredLangCode(tokenCode, tempdata[2], edition.getCardsLangCode());
                 // Just assume the CNr from the token image is valid
                 downloadUrls.add(ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD + ImageUtil.getScryfallTokenDownloadUrl(tempdata[2], tokenCode, langCode, face));
             } else if (!allTokens.isEmpty()) {
@@ -404,10 +434,10 @@ public abstract class ImageFetcher {
                 while (it.hasNext()) {
                     tis = it.next();
                     String tokenCode = edition.getTokensCode();
-                    String langCode = edition.getCardsLangCode();
                     if (tis.collectorNumber() == null || tis.collectorNumber().isEmpty()) {
                         continue;
                     }
+                    String langCode = CardLanguageIndex.resolvePreferredLangCode(tokenCode, tis.collectorNumber(), edition.getCardsLangCode());
 
                     downloadUrls.add(ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD + ImageUtil.getScryfallTokenDownloadUrl(tis.collectorNumber(), tokenCode, langCode, face));
                 }
