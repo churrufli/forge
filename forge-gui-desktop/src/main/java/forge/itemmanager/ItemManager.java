@@ -1006,7 +1006,7 @@ public abstract class ItemManager<T extends InventoryItem> extends JPanel implem
         if (!FModel.getPreferences().getPrefBoolean(FPref.UI_PREFER_LANG_FOR_UNIQUE_CARDS)) {
             return Aggregates.uniqueByLast(items, from -> from.getKey().getName());
         }
-        final String preferredLang = CardLanguageIndex.getPreferredCardLangCode();
+        final String preferredLang = CardCdnUuidBridge.getPreferredCardLangCode();
         if (preferredLang == null) {
             return Aggregates.uniqueByLast(items, from -> from.getKey().getName());
         }
@@ -1031,7 +1031,7 @@ public abstract class ItemManager<T extends InventoryItem> extends JPanel implem
         if (edition == null) {
             return false;
         }
-        return CardLanguageIndex.instance().isAvailableInLanguage(edition.getScryfallCode(), card.getCollectorNumber(), preferredLang);
+        return CardCdnUuidBridge.instance().isAvailableInLanguage(edition.getScryfallCode(), card.getCollectorNumber(), preferredLang);
     }
 
     /**

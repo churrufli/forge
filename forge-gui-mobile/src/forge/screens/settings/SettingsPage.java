@@ -32,7 +32,7 @@ import forge.toolbox.FList;
 import forge.toolbox.FOptionPane;
 import forge.toolbox.FScrollPane;
 import forge.toolbox.FTextField;
-import forge.util.CardLanguageIndex;
+import forge.util.CardCdnUuidBridge;
 import forge.util.Lang;
 import forge.util.Utils;
 
@@ -774,7 +774,7 @@ public class SettingsPage extends TabPage<SettingsScreen> {
         if (!preferForUnique || langCode == null || langCode.isEmpty() || "en".equalsIgnoreCase(langCode)) {
             FModel.getMagicDb().setPreferredLanguageAvailability(null);
         } else {
-            FModel.getMagicDb().setPreferredLanguageAvailability((setCode, cn) -> CardLanguageIndex.instance().isAvailableInLanguage(setCode, cn, langCode));
+            FModel.getMagicDb().setPreferredLanguageAvailability((setCode, cn) -> CardCdnUuidBridge.instance().isAvailableInLanguage(setCode, cn, langCode));
         }
     }
 

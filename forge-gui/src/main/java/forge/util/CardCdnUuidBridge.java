@@ -1,6 +1,8 @@
 package forge.util;
 
 import forge.localinstance.properties.ForgeConstants;
+import forge.localinstance.properties.ForgePreferences;
+import forge.model.FModel;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,21 +30,27 @@ import java.util.regex.Pattern;
  * as a no-forge-extras-dependency alternative.
  *
  * DELETE THIS CLASS, both ForgeConstants entries it uses,
- * card-art-cdn-uuid.txt, and forge-gui/tools/updateCardArtCdnUuids.py once
+ * cards-cdn-uuid.txt, and forge-gui/tools/updateCardArtCdnUuids.py once
  * #10928 merges, and call CdnUuidCache instead - it supersedes all of this.
  *
  * Two tiers, to avoid bundling one huge file with every install for a
  * feature most players never touch:
  *
- * 1. English (bundled, ~2MB): forge-gui/res/languages/card-art-cdn-uuid.txt,
- *    one UUID per printing, generated ahead of time and loaded eagerly.
+ * 1. Bundled index: forge-gui/res/languages/cards-cdn-uuid.txt, one UUID
+ *    per printing, generated ahead of time by updateCardArtCdnUuids.py and
+ *    loaded eagerly. Lines are "SET/CN=uuid" (English) or "SET/CN@lang=uuid"
+ *    (any other language, only present if the file was generated with
+ *    --all-languages). This is also the single source of truth for
+ *    language availability: a card is "available" in a language if and
+ *    only if this bridge can resolve a UUID for it, bundled or synced.
  *
- * 2. Other languages (never bundled, built at runtime): the first time a
- *    card needs a UUID in a non-English language, this class pages through
- *    Scryfall's own /cards/search?q=lang:xx&unique=prints - a normal,
- *    rate-limited, publicly documented endpoint, same one used by browsers
- *    and every third-party Scryfall tool - in a background thread, paced at
- *    one request per SEARCH_PACE_MS. The result is written to
+ * 2. Other languages not present in the bundled file (never bundled, built
+ *    at runtime): the first time a card needs a UUID in a non-English
+ *    language, this class pages through Scryfall's own
+ *    /cards/search?q=lang:xx&unique=prints - a normal, rate-limited,
+ *    publicly documented endpoint, same one used by browsers and every
+ *    third-party Scryfall tool - in a background thread, paced at one
+ *    request per SEARCH_PACE_MS. The result is written to
  *    {cacheDir}/cdn_uuid_bridge/<lang>.txt and read from there on every
  *    later lookup, this run and future ones. Lookups return null (falling
  *    back to the API, exactly as before) while the sync is still running or
@@ -73,7 +81,7 @@ public final class CardCdnUuidBridge {
 
     private static volatile CardCdnUuidBridge instance;
 
-    private final Map<String, Map<String, String>> englishIndex;
+    private final Map<String, Map<String, Map<String, String>>> bundledIndex;
     private final Map<String, Map<String, Map<String, String>>> foreignCache = new HashMap<>();
     private final Set<String> foreignSyncInFlightOrDone = new HashSet<>();
 
@@ -90,8 +98,8 @@ public final class CardCdnUuidBridge {
         return result;
     }
 
-    CardCdnUuidBridge(String englishFilePath) {
-        this.englishIndex = loadFlatFile(new File(englishFilePath));
+    CardCdnUuidBridge(String bundledFilePath) {
+        this.bundledIndex = loadBundledFile(new File(bundledFilePath));
     }
 
     /** Returns the Scryfall id for this printing/language, or null if not known locally yet. */
@@ -102,13 +110,58 @@ public final class CardCdnUuidBridge {
         final String lang = (langCode == null || langCode.isEmpty()) ? "en" : langCode.toLowerCase();
         final String set = setCode.toLowerCase();
 
+        final String bundled = lookupBundled(set, collectorNumber, lang);
+        if (bundled != null) {
+            return bundled;
+        }
         if ("en".equals(lang)) {
-            final Map<String, String> collectors = englishIndex.get(set);
-            return collectors == null ? null : collectors.get(collectorNumber);
+            return null;
         }
 
         final Map<String, String> collectors = getOrTriggerForeignIndex(lang).get(set);
         return collectors == null ? null : collectors.get(collectorNumber);
+    }
+
+    /**
+     * True if a UUID can be resolved for this printing/language - either from the
+     * bundled index, or from a foreign-language sync already completed this run
+     * or in a previous one. This is the single source of truth for "is this card
+     * available in this language" (replaces the old, separate CardLanguageIndex).
+     * Always true for English/null/empty langCode.
+     */
+    public boolean isAvailableInLanguage(String setCode, String collectorNumber, String langCode) {
+        if (langCode == null || langCode.isEmpty() || "en".equalsIgnoreCase(langCode)) {
+            return true;
+        }
+        return getUuid(setCode, collectorNumber, langCode) != null;
+    }
+
+    public static String getPreferredCardLangCode() {
+        String pref = FModel.getPreferences().getPref(ForgePreferences.FPref.UI_CARD_DOWNLOAD_LANG);
+        if (pref == null || pref.isEmpty() || "en".equalsIgnoreCase(pref)) {
+            return null;
+        }
+        return pref;
+    }
+
+    public static String resolvePreferredLangCode(String setCode, String collectorNumber, String defaultLangCode) {
+        String preferred = getPreferredCardLangCode();
+        if (preferred == null || preferred.equalsIgnoreCase(defaultLangCode)) {
+            return defaultLangCode;
+        }
+        if (instance().isAvailableInLanguage(setCode, collectorNumber, preferred)) {
+            return preferred;
+        }
+        return defaultLangCode;
+    }
+
+    private String lookupBundled(String set, String collectorNumber, String lang) {
+        final Map<String, Map<String, String>> bySet = bundledIndex.get(set);
+        if (bySet == null) {
+            return null;
+        }
+        final Map<String, String> byCollector = bySet.get(collectorNumber);
+        return byCollector == null ? null : byCollector.get(lang);
     }
 
     /**
@@ -249,6 +302,36 @@ public final class CardCdnUuidBridge {
             String cn = cnM.group(1);
             out.computeIfAbsent(set, k -> new HashMap<>()).put(cn, id);
         }
+    }
+
+    private static Map<String, Map<String, Map<String, String>>> loadBundledFile(File file) {
+        final Map<String, Map<String, Map<String, String>>> result = new HashMap<>();
+        if (!file.isFile()) {
+            return result;
+        }
+        for (String line : FileUtil.readFile(file)) {
+            if (line.isEmpty() || line.charAt(0) == '#') {
+                continue;
+            }
+            final int slash = line.indexOf('/');
+            final int eq = line.indexOf('=');
+            if (slash <= 0 || eq <= slash || eq == line.length() - 1) {
+                continue;
+            }
+            final String setCode = line.substring(0, slash).toLowerCase();
+            final String rest = line.substring(slash + 1, eq);
+            final int at = rest.indexOf('@');
+            final String collector = at >= 0 ? rest.substring(0, at) : rest;
+            final String lang = at >= 0 ? rest.substring(at + 1).toLowerCase() : "en";
+            final String uuid = line.substring(eq + 1).trim().toLowerCase();
+            if (uuid.length() <= 2 || collector.isEmpty() || lang.isEmpty()) {
+                continue;
+            }
+            result.computeIfAbsent(setCode, k -> new HashMap<>())
+                    .computeIfAbsent(collector, k -> new HashMap<>())
+                    .put(lang, uuid);
+        }
+        return result;
     }
 
     private static Map<String, Map<String, String>> loadFlatFile(File file) {

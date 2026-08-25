@@ -102,8 +102,7 @@ public final class ForgeConstants {
     public static final String SKIN_DIR                     = "skin" + PATH_SEPARATOR;
     public static final String ADVENTURE_COMMON_MUSIC_DIR   = ADVENTURE_COMMON_DIR + "music" + PATH_SEPARATOR;
     public static final String LANG_DIR                     = RES_DIR + "languages" + PATH_SEPARATOR;
-    public static final String CARD_LANGUAGES_FILE          = LANG_DIR + "card-art-languages.txt";
-    public static final String CARD_ART_CDN_UUID_FILE       = LANG_DIR + "card-art-cdn-uuid.txt";
+    public static final String CARD_ART_CDN_UUID_FILE       = LANG_DIR + "cards-cdn-uuid.txt";
     public static final String EFFECTS_DIR                  = RES_DIR + "effects" + PATH_SEPARATOR;
     public static final String PUZZLE_DIR                   = RES_DIR + "puzzle" + PATH_SEPARATOR;
     public static final String TUTORIAL_DIR                 = RES_DIR + "tutorial" + PATH_SEPARATOR;

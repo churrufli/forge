@@ -28,7 +28,7 @@ import forge.toolbox.FComboBox;
 import forge.toolbox.FComboBoxPanel;
 import forge.toolbox.FLabel;
 import forge.toolbox.FOptionPane;
-import forge.util.CardLanguageIndex;
+import forge.util.CardCdnUuidBridge;
 import forge.util.Localizer;
 import forge.view.arcane.PlayArea;
 import org.apache.commons.lang3.StringUtils;
@@ -456,7 +456,7 @@ public enum CSubmenuPreferences implements ICDoc {
         if (!preferForUnique || langCode == null || langCode.isEmpty() || "en".equalsIgnoreCase(langCode)) {
             FModel.getMagicDb().setPreferredLanguageAvailability(null);
         } else {
-            FModel.getMagicDb().setPreferredLanguageAvailability((setCode, cn) -> CardLanguageIndex.instance().isAvailableInLanguage(setCode, cn, langCode));
+            FModel.getMagicDb().setPreferredLanguageAvailability((setCode, cn) -> CardCdnUuidBridge.instance().isAvailableInLanguage(setCode, cn, langCode));
         }
     }
 

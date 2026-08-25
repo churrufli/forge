@@ -93,11 +93,11 @@ public final class FModel {
         if (!getPreferences().getPrefBoolean(FPref.UI_PREFER_LANG_FOR_UNIQUE_CARDS)) {
             return null;
         }
-        String preferredLang = CardLanguageIndex.getPreferredCardLangCode();
+        String preferredLang = CardCdnUuidBridge.getPreferredCardLangCode();
         if (preferredLang == null) {
             return null;
         }
-        return (setCode, collectorNumber) -> CardLanguageIndex.instance().isAvailableInLanguage(setCode, collectorNumber, preferredLang);
+        return (setCode, collectorNumber) -> CardCdnUuidBridge.instance().isAvailableInLanguage(setCode, collectorNumber, preferredLang);
     }
 
     private static final Supplier<QuestPreferences> questPreferences = Suppliers.memoize(QuestPreferences::new);

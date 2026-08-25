@@ -16,7 +16,7 @@ import forge.model.FModel;
 import forge.screens.home.quest.DialogChooseFormats;
 import forge.screens.home.quest.DialogChooseSets;
 import forge.screens.match.controllers.CDetailPicture;
-import forge.util.CardLanguageIndex;
+import forge.util.CardCdnUuidBridge;
 import forge.util.Localizer;
 
 import javax.swing.*;
@@ -64,7 +64,7 @@ public class CardManager extends ItemManager<PaperCard> {
         }
 
         final String preferredLang = FModel.getPreferences().getPrefBoolean(ForgePreferences.FPref.UI_PREFER_LANG_FOR_UNIQUE_CARDS)
-                ? CardLanguageIndex.getPreferredCardLangCode() : null;
+                ? CardCdnUuidBridge.getPreferredCardLangCode() : null;
 
         // Now we're ready to go on with retrieving cards to be returned
         Map<PaperCard, Integer> cardsMap = new HashMap<>();
@@ -146,7 +146,7 @@ public class CardManager extends ItemManager<PaperCard> {
         if (edition == null) {
             return false;
         }
-        return CardLanguageIndex.instance().isAvailableInLanguage(edition.getScryfallCode(), card.getCollectorNumber(), preferredLang);
+        return CardCdnUuidBridge.instance().isAvailableInLanguage(edition.getScryfallCode(), card.getCollectorNumber(), preferredLang);
     }
 
     /* Static overrides shared with SpellShopManager*/
