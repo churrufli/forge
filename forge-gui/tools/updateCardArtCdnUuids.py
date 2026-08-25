@@ -1,27 +1,4 @@
 #!/usr/bin/env python3
-"""
-updateCardArtCdnUuids.py
-
-TEMPORARY BRIDGE. Generates forge-gui/res/languages/card-art-cdn-uuid.txt:
-one Scryfall id per (set, collector number), English only, used by
-CardCdnUuidBridge to fetch card images from the Scryfall CDN
-(cards.scryfall.io, no rate limit) instead of api.scryfall.com (rate
-limited), ahead of PR #10928's CdnUuidCache.
-
-English only, and bundled (small, ~2MB) - other languages are never
-pre-generated or bundled. CardCdnUuidBridge builds those itself at runtime,
-in the background, the first time a player picks that language, by paging
-through Scryfall's own /cards/search?q=lang:xx API and caching the result
-locally. See that class for details.
-
-This intentionally mirrors updateCardArtLanguages.py closely - same bulk
-data source, same edition-file matching - so the two are easy to compare
-and easy to delete together once #10928 lands.
-
-Delete this file, CardCdnUuidBridge.java, both ForgeConstants entries it
-uses, and card-art-cdn-uuid.txt once #10928 merges - CdnUuidCache
-supersedes all of it.
-"""
 
 import requests
 import json
@@ -35,7 +12,8 @@ from datetime import datetime, timezone
 
 TOOLS_DIR = os.path.abspath(os.path.dirname(__file__))
 BULK_DATA_API = "https://api.scryfall.com/bulk-data"
-TEMP_FILE = os.path.join(TOOLS_DIR, "temp_bulk_data.jsonl.gz")
+TEMP_FILE_DEFAULT = os.path.join(TOOLS_DIR, "temp_bulk_data_default.jsonl.gz")
+TEMP_FILE_ALL = os.path.join(TOOLS_DIR, "temp_bulk_data_all.jsonl.gz")
 
 HEADERS = {
     "User-Agent": "CardArtCdnUuidUpdater/3.0 (temporary bridge, see PR #10928)",
@@ -54,24 +32,25 @@ CARD_LINE_RE = re.compile(
 )
 
 
-def fetch_bulk_url():
+def fetch_bulk_url(all_languages):
+    bulk_type = "all_cards" if all_languages else "default_cards"
     response = requests.get(BULK_DATA_API, headers=HEADERS, timeout=30)
     response.raise_for_status()
     data = response.json()
     for item in data["data"]:
-        if item["type"] == "all_cards":
+        if item["type"] == bulk_type:
             return item.get("jsonl_download_uri", item.get("download_uri"))
-    raise RuntimeError("all_cards entry not found")
+    raise RuntimeError(f"{bulk_type} entry not found")
 
 
-def download_bulk_file(url):
-    if os.path.exists(TEMP_FILE):
+def download_bulk_file(url, temp_file):
+    if os.path.exists(temp_file):
         return
     response = requests.get(url, headers=HEADERS, stream=True, timeout=600)
     response.raise_for_status()
     total = int(response.headers.get("content-length", 0))
     downloaded = 0
-    with open(TEMP_FILE, "wb") as f:
+    with open(temp_file, "wb") as f:
         for chunk in response.iter_content(8192):
             if not chunk:
                 continue
@@ -88,10 +67,11 @@ def is_real_card(card):
     return "Token" not in type_line and "Emblem" not in type_line
 
 
-def process_bulk_english():
-    # (set_code, collector_number) -> scryfall_id, English only
+def process_bulk(all_languages, temp_file):
+    # English-only mode: (set_code, collector_number) -> scryfall_id
+    # All-languages mode: (set_code, collector_number, lang) -> scryfall_id
     set_cards = {}
-    with gzip.open(TEMP_FILE, "rt", encoding="utf-8") as f:
+    with gzip.open(temp_file, "rt", encoding="utf-8") as f:
         for line in f:
             try:
                 card = json.loads(line)
@@ -101,7 +81,8 @@ def process_bulk_english():
                 continue
             if not is_real_card(card):
                 continue
-            if card.get("lang") != "en":
+            lang = card.get("lang")
+            if not all_languages and lang != "en":
                 continue
             scryfall_id = card.get("id")
             if not scryfall_id:
@@ -112,7 +93,10 @@ def process_bulk_english():
             collector_number = card.get("collector_number")
             if not set_code or not collector_number:
                 continue
-            set_cards[(set_code, collector_number)] = scryfall_id
+            if all_languages:
+                set_cards[(set_code, collector_number, lang)] = scryfall_id
+            else:
+                set_cards[(set_code, collector_number)] = scryfall_id
     return set_cards
 
 
@@ -157,10 +141,15 @@ def collector_numbers_in_edition(content):
     return numbers
 
 
-def collect_index(set_cards, editions_dir):
+def collect_index(set_cards, editions_dir, all_languages):
     index = {}
     editions_total = 0
     editions_matched = 0
+
+    by_set_cn = {}
+    if all_languages:
+        for (set_code, cn, lang), scryfall_id in set_cards.items():
+            by_set_cn.setdefault((set_code, cn), []).append((lang, scryfall_id))
 
     for filename in sorted(os.listdir(editions_dir)):
         if not filename.endswith(".txt"):
@@ -176,10 +165,15 @@ def collect_index(set_cards, editions_dir):
 
         matched_any = False
         for cn in collector_numbers_in_edition(content):
-            scryfall_id = set_cards.get((lookup_code, cn))
-            if scryfall_id:
-                index[(lookup_code, cn)] = scryfall_id
-                matched_any = True
+            if all_languages:
+                for lang, scryfall_id in by_set_cn.get((lookup_code, cn), []):
+                    index[(lookup_code, cn, lang)] = scryfall_id
+                    matched_any = True
+            else:
+                scryfall_id = set_cards.get((lookup_code, cn))
+                if scryfall_id:
+                    index[(lookup_code, cn)] = scryfall_id
+                    matched_any = True
         if matched_any:
             editions_matched += 1
 
@@ -188,11 +182,16 @@ def collect_index(set_cards, editions_dir):
     return index
 
 
-def write_index_file(index, output_path):
-    lines = [f"# TEMPORARY BRIDGE (bundled, English-only) - see PR #10928. generated_at="
+def write_index_file(index, output_path, all_languages):
+    scope = "all languages" if all_languages else "bundled, English-only"
+    lines = [f"# TEMPORARY BRIDGE ({scope}) - see PR #10928. generated_at="
              f"{datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}\n"]
-    for set_code, cn in sorted(index.keys()):
-        lines.append(f"{set_code}/{cn}={index[(set_code, cn)]}\n")
+    if all_languages:
+        for set_code, cn, lang in sorted(index.keys()):
+            lines.append(f"{set_code}/{cn}@{lang}={index[(set_code, cn, lang)]}\n")
+    else:
+        for set_code, cn in sorted(index.keys()):
+            lines.append(f"{set_code}/{cn}={index[(set_code, cn)]}\n")
     with open(output_path, "w", encoding="utf-8") as f:
         f.writelines(lines)
     size_kb = os.path.getsize(output_path) / 1024
@@ -203,6 +202,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--editions-dir", default=os.path.join(TOOLS_DIR, "..", "res", "editions"))
     parser.add_argument("--output", default=os.path.join(TOOLS_DIR, "..", "res", "languages", "card-art-cdn-uuid.txt"))
+    parser.add_argument(
+        "--all-languages",
+        action="store_true",
+        help="Download the full all_cards bulk (every language) instead of default_cards (English/reference only). "
+             "Output file name/path is unchanged; entries are keyed as SET/CN@lang instead of SET/CN."
+    )
     args = parser.parse_args()
     editions_dir = os.path.abspath(args.editions_dir)
     output_path = os.path.abspath(args.output)
@@ -212,11 +217,12 @@ def main():
         sys.exit(1)
 
     try:
-        url = fetch_bulk_url()
-        download_bulk_file(url)
-        set_cards = process_bulk_english()
-        index = collect_index(set_cards, editions_dir)
-        write_index_file(index, output_path)
+        temp_file = TEMP_FILE_ALL if args.all_languages else TEMP_FILE_DEFAULT
+        url = fetch_bulk_url(args.all_languages)
+        download_bulk_file(url, temp_file)
+        set_cards = process_bulk(args.all_languages, temp_file)
+        index = collect_index(set_cards, editions_dir, args.all_languages)
+        write_index_file(index, output_path, args.all_languages)
     except Exception:
         traceback.print_exc()
         sys.exit(1)
