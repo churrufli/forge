@@ -507,6 +507,10 @@ public class SettingsPage extends TabPage<SettingsScreen> {
         lstSettings.addItem(new BooleanSetting(FPref.UI_ENABLE_ONLINE_IMAGE_FETCHER,
             Forge.getLocalizer().getMessage("cbImageFetcher"),
             Forge.getLocalizer().getMessage("nlImageFetcher")), 4);
+        lstSettings.addItem(new CustomSelectSetting(FPref.UI_CARD_IMAGE_LANGUAGE,
+            Forge.getLocalizer().getMessage("lblCardImageLanguage"),
+            Forge.getLocalizer().getMessage("nlCardImageLanguage"),
+            FLanguage.getAllLanguages()), 4);
         lstSettings.addItem(new CustomSelectSetting(FPref.UI_PREFERRED_ART,
             Forge.getLocalizer().getMessage("lblPreferredArt"),
             Forge.getLocalizer().getMessage("nlPreferredArt"),

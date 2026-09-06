@@ -109,6 +109,8 @@ public abstract class ImageFetcher {
         if (edition == null) // Edition does not exist - some error occurred with card data
             return null;
 
+        addPreferredLanguageUrl(c, face, useArtCrop, edition, downloadUrls);
+
         if (hasSetLookup) {
             // Always try the requested print first. The old fallback skipped it
             // entirely and went straight to alternate prints, which can fetch
@@ -131,6 +133,18 @@ public abstract class ImageFetcher {
             downloadUrls.add(ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD + ImageUtil.getScryfallDownloadUrl(c, face, setCode, "", useArtCrop));
         }
         return null;
+    }
+
+    private static void addPreferredLanguageUrl(PaperCard card, String face, boolean useArtCrop, CardEdition edition, ArrayList<String> downloadUrls) {
+        if (!"en".equals(edition.getCardsLangCode()))
+            return;
+        String langCode = langCodeMap.get(FModel.getPreferences().getPref(ForgePreferences.FPref.UI_CARD_IMAGE_LANGUAGE));
+        if (langCode == null || "en".equals(langCode))
+            return;
+        String url = ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD
+                + ImageUtil.getScryfallDownloadUrl(card, face, edition.getScryfallCode(), langCode, useArtCrop);
+        if (!downloadUrls.contains(url))
+            downloadUrls.add(0, url);
     }
 
     private void addScryfallUrl(PaperCard card, String face, boolean useArtCrop, ArrayList<String> downloadUrls) {

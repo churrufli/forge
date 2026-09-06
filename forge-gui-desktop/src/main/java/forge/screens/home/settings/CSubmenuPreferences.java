@@ -227,6 +227,7 @@ public enum CSubmenuPreferences implements ICDoc {
         initializeServerPortButton();
         initializeAfkTimeoutButton();
         initializeDefaultLanguageComboBox();
+        initializeCardImageLanguageComboBox();
         initializeActionableHighlightColorField();
 
         disableLazyLoading();
@@ -406,6 +407,28 @@ public enum CSubmenuPreferences implements ICDoc {
         final FComboBox<String> comboBox = createComboBox(choices, userSetting);
         final String selectedItem = this.prefs.getPref(userSetting);
         panel.setComboBox(comboBox, selectedItem);
+    }
+
+    private void initializeCardImageLanguageComboBox() {
+        final File lang_root = new File(ForgeConstants.LANG_DIR);
+        final File[] files = lang_root.listFiles();
+        final List<String> allLanguages = new ArrayList<>();
+        if (files != null) {
+            for (File file : files) {
+                if (!file.isFile()) {
+                    continue;
+                }
+                String languageName = file.getName();
+                if (!languageName.endsWith(".properties")) {
+                    continue;
+                }
+                allLanguages.add(languageName.replace(".properties", ""));
+            }
+        }
+        final FPref userSetting = FPref.UI_CARD_IMAGE_LANGUAGE;
+        final FComboBoxPanel<String> panel = this.view.getCbpCardImageLanguageComboBoxPanel();
+        final FComboBox<String> comboBox = createComboBox(allLanguages.toArray(new String[0]), userSetting);
+        panel.setComboBox(comboBox, this.prefs.getPref(userSetting));
     }
 
     private void initializeAutoUpdaterComboBox() {
