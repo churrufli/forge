@@ -1036,6 +1036,23 @@ public final class CardDb implements ICardDatabase, IDeckGenPool {
                 Collections.reverse(acceptedEditions);  // newest editions first
         }
 
+        if (preferredLanguageAvailability != null) {
+            PaperCard preferredCandidate = null;
+            for (CardEdition acceptedEdition : acceptedEditions) {
+                PaperCard pc = candidatesCard.get(acceptedEdition.getCode());
+                if (pc == null || !isPreferredLanguagePrint(pc))
+                    continue;
+                if (preferredCandidate == null)
+                    preferredCandidate = pc;
+                if (pc.hasImage()) {
+                    preferredCandidate = pc;
+                    break;
+                }
+            }
+            if (preferredCandidate != null)
+                return cr.isFoil ? preferredCandidate.getFoiled() : preferredCandidate;
+        }
+
         final Iterator<CardEdition> editionIterator = acceptedEditions.iterator();
         CardEdition ed = editionIterator.next();
         PaperCard candidate = candidatesCard.get(ed.getCode());
