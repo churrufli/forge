@@ -3699,3 +3699,8 @@
 2026-09-28 12854947 Pioneer Challenge 32 (32 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/pioneer/2026-09-28-12854947-pioneer-challenge-32.zip
 2026-09-29 10999 Pioneer League (9 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/pioneer/2026-09-29-10999-pioneer-league.zip
 2026-10-01 12855464 Pioneer Challenge 32 (32 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/pioneer/2026-10-01-12855464-pioneer-challenge-32.zip
+2026-10-04 12855494 Pioneer Challenge 16 (25 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/pioneer/2026-10-04-12855494-pioneer-challenge-16.zip
+2026-10-05 12855505 Pioneer Challenge 32 (32 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/pioneer/2026-10-05-12855505-pioneer-challenge-32.zip
+2026-10-08 12856150 Pioneer Challenge 32 (32 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/pioneer/2026-10-08-12856150-pioneer-challenge-32.zip
+2026-10-10 12856171 Pioneer Challenge 16 (25 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/pioneer/2026-10-10-12856171-pioneer-challenge-16.zip
+2026-10-11 12856181 Pioneer Challenge 16 (26 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/pioneer/2026-10-11-12856181-pioneer-challenge-16.zip
