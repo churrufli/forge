@@ -3391,3 +3391,12 @@
 2026-11-07 12857688 Vintage Challenge 32 (32 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/vintage/2026-11-07-12857688-vintage-challenge-32.zip
 2026-11-08 12857694 Vintage Challenge 16 (26 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/vintage/2026-11-08-12857694-vintage-challenge-16.zip
 2026-11-08 12857701 Vintage Challenge 32 (32 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/vintage/2026-11-08-12857701-vintage-challenge-32.zip
+2026-11-09 11185 Vintage League (7 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/vintage/2026-11-09-11185-vintage-league.zip
+2026-11-11 11369 Vintage League (6 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/vintage/2026-11-11-11369-vintage-league.zip
+2026-11-12 11369 Vintage League (7 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/vintage/2026-11-12-11369-vintage-league.zip
+2026-11-12 12858090 Vintage Challenge 32 (32 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/vintage/2026-11-12-12858090-vintage-challenge-32.zip
+2026-11-13 11369 Vintage League (8 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/vintage/2026-11-13-11369-vintage-league.zip
+2026-11-14 11369 Vintage League (5 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/vintage/2026-11-14-11369-vintage-league.zip
+2026-11-14 12858109 Vintage Challenge 32 (32 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/vintage/2026-11-14-12858109-vintage-challenge-32.zip
+2026-11-15 11369 Vintage League (6 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/vintage/2026-11-15-11369-vintage-league.zip
+2026-11-15 12858122 Vintage Challenge 32 (32 decks) | https://github.com/Card-Forge/forge-extras/raw/refs/heads/main/decks/archive/vintage/2026-11-15-12858122-vintage-challenge-32.zip
